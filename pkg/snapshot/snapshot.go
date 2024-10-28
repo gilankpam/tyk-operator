@@ -65,12 +65,15 @@ func changeWorkingDir() error {
 }
 
 // PrintSnapshot outputs a snapshot of the Dashboard as a CR.
-func PrintSnapshot(ctx context.Context, apiDefinitionsFile, policiesFile, category string, separate bool) error {
+func PrintSnapshot(ctx context.Context, apiDefinitionsFile, policiesFile, category string, separate bool, defaultNs string) error {
 	err := changeWorkingDir()
 	if err != nil {
 		return err
 	}
 
+	// This is the actual function for calling the tyk API and get all the APIs, we might want to only filter
+	// the APIs we are interested in
+	// TODO
 	apiDefSpecList, err := klient.Universal.Api().List(ctx)
 	if err != nil {
 		return err
@@ -97,7 +100,7 @@ func PrintSnapshot(ctx context.Context, apiDefinitionsFile, policiesFile, catego
 
 	exportApiDef := func(i int, w *bufio.Writer, v *model.APIDefinitionSpec) error {
 		// Parse Config Data of the ApiDefinition created on Dashboard.
-		name, ns, err := parseConfigData(v, fmt.Sprintf("%s_%d", DefaultName, i))
+		name, ns, err := parseConfigData(v, defaultNs)
 		if err != nil {
 			fmt.Printf("WARNING: failed to parse API %v due to malformed ConfigData, err: %v\n", v.Name, err)
 
@@ -155,7 +158,7 @@ func PrintSnapshot(ctx context.Context, apiDefinitionsFile, policiesFile, catego
 
 	if separate {
 		for i, apiDefSpec := range apiDefSpecList.Apis {
-			name, ns, err := parseConfigData(apiDefSpec, "")
+			name, ns, err := parseConfigData(apiDefSpec, defaultNs)
 			if err != nil {
 				fmt.Printf("WARNING: failed to parse API %v due to malformed ConfigData, err: %v\n",
 					apiDefSpec.Name,
@@ -366,21 +369,38 @@ func val(obj map[string]interface{}, key string) (string, error) {
 	return strings.TrimSpace(strVal), nil
 }
 
+func slugify(apiName string) string {
+	// Split the input string by spaces
+	parts := strings.Split(apiName, " ")
+
+	// Filter out parts that start with '#'
+	var filteredParts []string
+	for _, part := range parts {
+		if !strings.HasPrefix(part, "#") {
+			filteredParts = append(filteredParts, part)
+		}
+	}
+
+	// Join the filtered parts back together
+	return strings.Join(filteredParts, "-")
+}
+
 // parseConfigData parses given ApiDefinitionSpec's ConfigData field. It checks existence of NameKey and NamespaceKey
 // keys in the ConfigData map. Returns their values if keys exist. Otherwise, returns default values for name and namespace.
 // Returns error in case of missing NameKey in the Config Data.
-func parseConfigData(apiDefSpec *model.APIDefinitionSpec, defName string) (name, namespace string, err error) {
-	if apiDefSpec.ConfigData == nil {
-		return defName, DefaultNs, ErrNonExistentConfigData
-	}
+func parseConfigData(apiDefSpec *model.APIDefinitionSpec, defaultNs string) (name, namespace string, err error) {
+	// if apiDefSpec.ConfigData == nil {
+	// 	return defName, DefaultNs, ErrNonExistentConfigData
+	// }
 
 	// Parse name
-	name, err = val(apiDefSpec.ConfigData.Object, NameKey)
-	if err != nil {
-		return defName, DefaultNs, ErrInvalidConfigData
-	}
-
-	namespace, _ = val(apiDefSpec.ConfigData.Object, NamespaceKey) //nolint:errcheck
+	// name, err = val(apiDefSpec.ConfigData.Object, NameKey)
+	name = slugify(apiDefSpec.Name)
+	// if err != nil {
+	// 	return defName, DefaultNs, ErrInvalidConfigData
+	// }
+	namespace = defaultNs
+	// namespace, _ = val(apiDefSpec.ConfigData.Object, NamespaceKey) //nolint:errcheck
 
 	// Warn if .metadata includes an empty character because it violates k8s spec rules.
 	for _, v := range []string{name, namespace} {

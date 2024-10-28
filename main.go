@@ -48,6 +48,7 @@ var (
 	policyFileFlag   string
 	categoryFlag     string
 	separateFileFlag bool
+	defaultNs        string
 )
 
 func init() {
@@ -64,6 +65,8 @@ func init() {
 	flag.StringVar(&policyFileFlag, "policy", "",
 		"By passing an export flag, we are telling the Operator to connect to a "+
 			"Tyk installation in order to pull a snapshot of SecurityPolicies from that environment and output as CR")
+
+	flag.StringVar(&defaultNs, "defaultNs", "", "Default kube namespace.")
 
 	runSnapshot := apiDefFileFlag != "" || policyFileFlag != "" || separateFileFlag
 	if runSnapshot {
@@ -104,7 +107,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		if err := snapshot.PrintSnapshot(ctx, apiDefFileFlag, policyFileFlag, categoryFlag, separateFileFlag); err != nil {
+		if err := snapshot.PrintSnapshot(ctx, apiDefFileFlag, policyFileFlag, categoryFlag, separateFileFlag, defaultNs); err != nil {
 			snapshotLog.Error(err, "failed to run snapshot")
 			os.Exit(1)
 		}
